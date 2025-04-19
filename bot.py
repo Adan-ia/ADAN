@@ -28,4 +28,9 @@ def start(message):
 if __name__ == '__main__':
     # Configuración óptima para Render
     PORT = int(os.getenv('PORT', 10000))
+    
+    
+WEBHOOK_URL = f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME')}/{TELEGRAM_TOKEN}"
+bot.set_webhook(url=WEBHOOK_URL)
+
     app.run(host='0.0.0.0', port=PORT)
