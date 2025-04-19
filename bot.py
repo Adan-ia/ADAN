@@ -1,30 +1,31 @@
-from flask import Flask, request
-import telebot
 import os
+from flask import Flask
+import telebot
 
-# Configuración inicial
+# 1. Verificación robusta del token
+TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
+
+if not TELEGRAM_TOKEN:
+    print("❌ ERROR CRÍTICO: Token no encontrado")
+    print("Solución:")
+    print("1. Ve a Render → Tu servicio → Environment")
+    print("2. Añade variable 'TELEGRAM_TOKEN'")
+    print("3. Pega tu token de @BotFather")
+    raise RuntimeError("Configura el token como variable de entorno")
+
+# 2. Inicialización segura
 app = Flask(__name__)
-TOKEN = os.getenv("7853734167:AAEhM-yMWZt8EHYXYfYTRLJoBtoHk6K3W5g")  # Usa variables de entorno para el token
-bot = telebot.TeleBot(TOKEN_TELEGRAM)
+bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
-# Comandos del bot
+@app.route('/')
+def home():
+    return "¡Bot operativo!"
+
 @bot.message_handler(commands=['start'])
-def send_welcome(message):
-    bot.reply_to(message, "Hola, soy tu bot!")
+def start(message):
+    bot.reply_to(message, "¡Funcionando correctamente!")
 
-# Manejo de errores
-@bot.message_handler(func=lambda message: True)
-def echo_all(message):
-    try:
-        bot.reply_to(message, message.text)
-    except Exception as e:
-        print(f"Error: {e}")
-
-# Inicio de la aplicación
 if __name__ == '__main__':
-    # Elimina cualquier webhook previo para evitar conflictos
-    bot.remove_webhook()
-    
-    # Configuración para Render
-    PORT = int(os.environ.get('PORT', 10000))
+    # Configuración óptima para Render
+    PORT = int(os.getenv('PORT', 10000))
     app.run(host='0.0.0.0', port=PORT)
