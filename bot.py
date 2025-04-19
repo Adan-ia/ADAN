@@ -5,7 +5,7 @@ import os
 # Configuración inicial
 app = Flask(__name__)
 TOKEN = os.getenv("7853734167:AAEhM-yMWZt8EHYXYfYTRLJoBtoHk6K3W5g")  # Usa variables de entorno para el token
-bot = telebot.TeleBot(TOKEN)
+bot = telebot.TeleBot(TOKEN_TELEGRAM)
 
 # Comandos del bot
 @bot.message_handler(commands=['start'])
