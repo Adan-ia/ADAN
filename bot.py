@@ -25,6 +25,6 @@ def home():
     return "Bot activo (ignorar este mensaje)", 200
 
 if __name__ == "__main__":
-import threading
-threading.Thread(target=bot.polling).start()
+    import threading
+    threading.Thread(target=bot.polling).start()
 app.run(host='0.0.0.0', port=10000)
