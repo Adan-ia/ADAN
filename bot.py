@@ -1,6 +1,6 @@
 import os
-import telebot
-import replicate
+   import telebot
+   import replicate
 
 bot = telebot.TeleBot("7853734167:AAEhM-yMWZt8EHYXYfYTRLJoBtoHk6K3W5g")
 
