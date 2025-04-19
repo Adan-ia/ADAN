@@ -2,17 +2,16 @@ import os
    import telebot
    import replicate
 
-bot = telebot.TeleBot("7853734167:AAEhM-yMWZt8EHYXYfYTRLJoBtoHk6K3W5g")
+   bot = telebot.TeleBot(os.environ['TOKEN_TELEGRAM'])
 
-@bot.message_handler(func=lambda m: True)
-def responder(m):
-    respuesta = replicate.run(
-        "meta/llama-3-70b-instruct",
-        input={
-            "prompt": f"Eres A.D.A.N. Responde a Adam con estilo técnico y cercano. Pregunta: {m.text}",
-            "max_tokens": 150
-        }
-    )
-    bot.reply_to(m, respuesta[0])
+   @bot.message_handler(func=lambda m: True)
+   def responder(m):
+       output = replicate.run(
+           "meta/llama-3-70b-instruct",
+           input={"prompt": f"Eres J.A.R.V.I.S. Responde breve y técnico. Pregunta: {m.text}"}
+       )
+       bot.reply_to(m, output[0])
 
-bot.polling()
+   if __name__ == "__main__":
+       print("⚡ Bot iniciado")
+       bot.polling()
