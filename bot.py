@@ -37,7 +37,7 @@ def consultar_deepseek(pregunta: str, chat_id: str) -> str:
         }
         
         response = requests.post(
-            f'{DEEPSEEK_API_URL}/chat/completions',
+            f'{ADAN_API_URL}/chat/completions',
             headers=headers,
             json=payload,
             timeout=15
