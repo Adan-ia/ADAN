@@ -4,8 +4,6 @@ from flask import Flask, request
 import logging
 import requests
 import time
-import json
-from typing import Optional
 from threading import Thread
 
 # Configuración inicial
@@ -23,7 +21,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def verificar_conexion() -> bool:
-    """Verifica si la API está disponible"""
+    """Verifica si la API de DeepSeek está disponible"""
     if not DEEPSEEK_API_KEY:
         logger.error("No hay clave API configurada")
         return False
@@ -39,8 +37,8 @@ def verificar_conexion() -> bool:
         logger.error(f"Error verificando conexión: {str(e)}")
         return False
 
-def consultar_deepseek(pregunta: str) -> Optional[str]:
-    """Consulta mejorada con manejo de errores detallado"""
+def consultar_deepseek(pregunta: str) -> str:
+    """Consulta mejorada a la API de DeepSeek con manejo de errores"""
     if not DEEPSEEK_API_KEY:
         return "🔴 Error: No tengo configurada la clave API de DeepSeek"
     
@@ -58,7 +56,8 @@ def consultar_deepseek(pregunta: str) -> Optional[str]:
                 {"role": "user", "content": pregunta}
             ],
             "temperature": 0.7,
-            "max_tokens": 500
+            "max_tokens": 500,
+            "stream": False
         }
         
         logger.info(f"Consultando a DeepSeek: {pregunta[:50]}...")
@@ -67,7 +66,7 @@ def consultar_deepseek(pregunta: str) -> Optional[str]:
             f"{DEEPSEEK_API_URL}/chat/completions",
             headers=headers,
             json=payload,
-            timeout=15
+            timeout=20  # Timeout aumentado para Render
         )
         
         logger.info(f"Respuesta HTTP: {response.status_code}")
@@ -87,14 +86,14 @@ def consultar_deepseek(pregunta: str) -> Optional[str]:
 
 @bot.message_handler(commands=['start', 'help', 'adan'])
 def send_welcome(message):
-    """Mensaje de bienvenida mejorado"""
+    """Mensaje de bienvenida mejorado con estado de conexión"""
     estado = "✅ Operativo" if verificar_conexion() else "❌ Sin conexión"
     
     welcome_text = f"""
     🤖 *Asistente ADAN con DeepSeek-V3* 🧠
     
     *Estado:* {estado}
-    *Uso:*
+    *Modo de uso:*
     - Escribe tu pregunta directamente
     - O usa /adan [tu pregunta]
     """
@@ -102,7 +101,7 @@ def send_welcome(message):
 
 @bot.message_handler(func=lambda message: True)
 def handle_all_messages(message):
-    """Manejador principal mejorado"""
+    """Manejador principal para todas las preguntas"""
     if message.text.startswith('/'):  # Ignorar otros comandos
         return
         
@@ -115,4 +114,49 @@ def handle_all_messages(message):
     respuesta = consultar_deepseek(message.text)
     bot.reply_to(message, f"🧠 *Respuesta:*\n\n{respuesta}", parse_mode="Markdown")
 
-# ... (resto del código de webhook y configuración igual que antes)
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    """Endpoint para webhook de Telegram"""
+    if request.headers.get('content-type') == 'application/json':
+        json_string = request.get_data().decode('utf-8')
+        update = telebot.types.Update.de_json(json_string)
+        bot.process_new_updates([update])
+        return '', 200
+    return 'Bad request', 400
+
+def setup_webhook():
+    """Configuración del webhook para producción"""
+    try:
+        bot.remove_webhook()
+        time.sleep(1)
+        webhook_url = f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME')}/webhook"
+        bot.set_webhook(url=webhook_url)
+        logger.info(f"Webhook configurado en: {webhook_url}")
+    except Exception as e:
+        logger.error(f"Error configurando webhook: {str(e)}")
+        raise
+
+def run_flask_app():
+    """Inicia la aplicación Flask en el puerto correcto"""
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port, debug=False)
+
+if __name__ == '__main__':
+    if os.getenv('RENDER'):
+        logger.info("Iniciando en modo producción (Render.com)")
+        
+        # Configura el webhook primero
+        setup_webhook()
+        
+        # Inicia Flask en un hilo separado
+        flask_thread = Thread(target=run_flask_app)
+        flask_thread.daemon = True
+        flask_thread.start()
+        
+        # Mantén el proceso principal vivo
+        while True:
+            time.sleep(3600)  # Evita que el proceso termine
+    else:
+        logger.info("Iniciando en modo desarrollo (polling)")
+        bot.remove_webhook()
+        bot.infinity_polling()
