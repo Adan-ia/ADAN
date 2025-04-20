@@ -4,6 +4,7 @@ from flask import Flask, request
 import logging
 import requests
 import time
+import json
 from typing import Optional
 
 # Configuración inicial
