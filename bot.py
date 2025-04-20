@@ -4,6 +4,7 @@ from flask import Flask, request
 import logging
 import requests
 import json
+import time
 
 # Configuración inicial
 TOKEN = os.getenv('TELEGRAM_TOKEN')
