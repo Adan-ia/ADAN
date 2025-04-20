@@ -315,6 +315,13 @@ def iniciar_servidor():
 # =============================================
 
 if __name__ == '__main__':
+    try:
+        import py_compile
+        py_compile.compile('bot.py', doraise=True)
+        logger.info("✓ Sintaxis verificada correctamente")
+    except py_compile.PyCompileError as e:
+        logger.error(f"Error de sintaxis: {str(e)}")
+        raise SystemExit(1)
     logger.info("="*60)
     logger.info(f"Iniciando Bot ADAN - DeepSeek")
     logger.info(f"URL API: {DEEPSEEK_API_URL}")
