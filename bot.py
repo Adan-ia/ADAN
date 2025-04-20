@@ -1,3 +1,6 @@
+import socket
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # Permite reusar el puertoimport os
 import os
 import logging
 from typing import Dict, Any
@@ -184,20 +187,13 @@ async def setup_webhook():
         raise
 
 def run():
-    import asyncio
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    try:
-        loop.run_until_complete(setup_webhook())
-        
-        if config.WEBHOOK_URL:
-            from waitress import serve
-            logger.info(f"Iniciando servidor web en puerto {config.PORT}")
-            serve(app, host="0.0.0.0", port=config.PORT)
-        else:
-            logger.info("Iniciando bot en modo polling")
-            bot_app.run_polling()
+       port = int(os.environ.get("PORT", 8000))  # Siempre usa el puerto de Render
+       if config.WEBHOOK_URL:
+           from waitress import serve
+           logger.info(f"Iniciando servidor en puerto {port}")
+           serve(app, host="0.0.0.0", port=port)
+       else:
+           bot_app.run_polling()
     except Exception as e:
         logger.critical(f"Error fatal: {str(e)}", exc_info=True)
     finally:
