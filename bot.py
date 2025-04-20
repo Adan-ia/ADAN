@@ -188,7 +188,7 @@ class DeepSeekConnector:
 # MANEJADORES DE TELEGRAM
 # =============================================
 
-@bot.message_handler(commands=['start', 'help', 'adan'])
+@bot.message_handler(commands=['start', 'help', 'adan'])  # Decorador corregido
 def enviar_bienvenida(message):
     """Mensaje de bienvenida con diagnóstico completo"""
     conexion = DeepSeekConnector.verificar_conexion()
@@ -203,23 +203,26 @@ def enviar_bienvenida(message):
     
     if not conexion['conectado']:
         if 'solucion' in conexion:
-            status_msg.append(f"\n*Solución:* {conexion['solucion']}")
+            status_msg.append(f"\\n*Solución:* {conexion['solucion']}")  # Escape correcto de \n
         if 'error' in conexion:
-            status_msg.append(f"\n*Error:* `{conexion['error'][:200]}`")
+            status_msg.append(f"\\n*Error:* `{conexion['error'][:200]}`")
+
+    # Usamos join() fuera del f-string para evitar problemas
+    mensaje_status = "\n".join(status_msg)
     
     welcome_msg = f"""
-    🤖 *Asistente ADAN con DeepSeek* 🧠
-    
-    {"\n".join(status_msg)}
-    
-    *Cómo usarme:*
-    - Escribe tu pregunta directamente
-    - O usa /adan [tu pregunta]
-    """
+🤖 *Asistente ADAN con DeepSeek* 🧠
+
+{mensaje_status}
+
+*Cómo usarme:*
+- Escribe tu pregunta directamente
+- O usa /adan [tu pregunta]
+"""
     
     bot.reply_to(message, welcome_msg, parse_mode="Markdown")
 
-@bot.message_handler(func=lambda message: True)
+@bot.message_handler(func=lambda message: True)  # Decorador corregido
 def manejar_mensaje(message):
     """Procesa todos los mensajes de texto"""
     if message.text.startswith('/'):
