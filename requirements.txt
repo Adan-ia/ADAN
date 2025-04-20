@@ -1,5 +1,5 @@
-flask>=2.0.0
-python-telegram-bot>=20.0
-requests>=2.25.0
-python-dotenv>=0.19.0
-waitress>=2.1.0  # Solo necesario si usas webhook
+flask==2.3.2
+python-telegram-bot==20.3
+requests==2.31.0
+waitress==2.1.2
+python-dotenv==1.0.0
