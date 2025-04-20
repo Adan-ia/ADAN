@@ -1,22 +1,5 @@
-# Archivos de entorno
-  .env
-  .env.local
-  .env*.local
-
-  # Archivos de Python
-  __pycache__/
-  *.pyc
-  *.pyo
-  *.pyd
-
-  # Logs
-  *.log
-  bot_debug.log
-
-  # Sistema
-  .DS_Store
-  thumbs.db
-
-  # Entornos virtuales
-  venv/
-  env/
+.env
+*.log
+__pycache__/
+*.pyc
+.DS_Store
