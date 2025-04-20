@@ -5,104 +5,138 @@ import logging
 import requests
 import time
 from threading import Thread
+from urllib.parse import urlparse
 import json
 
-# Configuración inicial con verificación estricta
+# =============================================
+# CONFIGURACIÓN INICIAL Y VALIDACIÓN
+# =============================================
+
+def validar_url_api(url: str) -> str:
+    """Valida y normaliza la URL de la API"""
+    url = url.strip().lower()
+    
+    # Asegurar que comience con https://
+    if not url.startswith(('http://', 'https://')):
+        url = f'https://{url}'
+    elif url.startswith('http://'):
+        url = url.replace('http://', 'https://')
+    
+    # Eliminar duplicados de esquema
+    url = url.replace('https://https://', 'https://')
+    
+    # Asegurar versión API
+    if not url.endswith('/v1'):
+        url = url.rstrip('/') + '/v1'
+    
+    # Validación final
+    try:
+        parsed = urlparse(url)
+        if not all([parsed.scheme, parsed.netloc]):
+            raise ValueError("URL inválida")
+        return url
+    except Exception as e:
+        raise ValueError(f"URL de API inválida: {str(e)}")
+
+# Carga de configuraciones con validación
 try:
     TOKEN = os.environ['TELEGRAM_TOKEN']
     DEEPSEEK_API_KEY = os.environ['DEEPSEEK_API_KEY']
-    DEEPSEEK_API_URL = os.getenv('DEEPSEEK_API_URL', 'https://api.deepseek.com/v1')
+    DEEPSEEK_API_URL = validar_url_api(os.getenv('DEEPSEEK_API_URL', 'api.deepseek.com'))
     
-    # Validación básica de las credenciales
     if not TOKEN or not DEEPSEEK_API_KEY:
         raise ValueError("Credenciales esenciales no configuradas")
-        
-except KeyError as e:
-    raise SystemExit(f"Error: Variable de entorno faltante - {str(e)}")
+
+except (KeyError, ValueError) as e:
+    raise SystemExit(f"Error de configuración: {str(e)}")
+
+# =============================================
+# INICIALIZACIÓN
+# =============================================
 
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
-# Configuración avanzada de logging
+# Configuración de logging
 logging.basicConfig(
-    level=logging.DEBUG,  # Cambiado a DEBUG para máxima visibilidad
+    level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler('bot_debug.log')  # Logs persistentes
+        logging.FileHandler('bot_debug.log')
     ]
 )
 logger = logging.getLogger(__name__)
 
+# =============================================
+# CLASE DE CONEXIÓN API MEJORADA
+# =============================================
+
 class DeepSeekConnector:
-    """Clase dedicada para manejar la conexión con DeepSeek API"""
-    
     @staticmethod
-    def verify_connection() -> dict:
-        """Verificación detallada de la conexión"""
-        if not DEEPSEEK_API_KEY:
-            return {
-                'status': False,
-                'message': 'API Key no configurada',
-                'details': None
-            }
+    def verificar_conexion() -> dict:
+        """Verifica el estado de conexión con la API"""
+        endpoint = f"{DEEPSEEK_API_URL}/models"
+        logger.debug(f"Verificando conexión con: {endpoint}")
         
         try:
-            start_time = time.time()
+            start = time.time()
             response = requests.get(
-                f"{DEEPSEEK_API_URL}/models",
+                endpoint,
                 headers={"Authorization": f"Bearer {DEEPSEEK_API_KEY}"},
-                timeout=10
+                timeout=15
             )
-            
-            latency = round((time.time() - start_time) * 1000, 2)
+            latency = round((time.time() - start) * 1000, 2)
             
             if response.status_code == 200:
                 return {
-                    'status': True,
-                    'message': 'Conexión exitosa',
-                    'details': {
-                        'latency_ms': latency,
-                        'response': response.json()
-                    }
+                    'conectado': True,
+                    'mensaje': '✅ Conexión exitosa',
+                    'latencia_ms': latency,
+                    'detalles': response.json().get('data', [])[:3]
                 }
             else:
                 return {
-                    'status': False,
-                    'message': f'Error HTTP {response.status_code}',
-                    'details': {
-                        'response': response.text[:500],
-                        'headers': dict(response.headers)
-                    }
+                    'conectado': False,
+                    'mensaje': f'❌ Error HTTP {response.status_code}',
+                    'error': response.text[:500],
+                    'headers': dict(response.headers)
                 }
                 
+        except requests.exceptions.SSLError:
+            return {
+                'conectado': False,
+                'mensaje': '❌ Error SSL - Verifica el certificado',
+                'solucion': 'Usa una URL válida con HTTPS'
+            }
+        except requests.exceptions.Timeout:
+            return {
+                'conectado': False,
+                'mensaje': '❌ Timeout - API no respondió',
+                'solucion': 'Revisa tu conexión o aumenta el timeout'
+            }
+        except requests.exceptions.ConnectionError:
+            return {
+                'conectado': False,
+                'mensaje': f'❌ No se pudo conectar a {DEEPSEEK_API_URL}',
+                'solucion': 'Verifica la URL y tu conexión a internet'
+            }
         except Exception as e:
             return {
-                'status': False,
-                'message': str(e),
-                'details': {
-                    'type': type(e).__name__
-                }
+                'conectado': False,
+                'mensaje': f'❌ Error inesperado: {type(e).__name__}',
+                'error': str(e)
             }
 
     @staticmethod
-    def query(prompt: str) -> dict:
-        """Método robusto para consultar a la API"""
-        connection = DeepSeekConnector.verify_connection()
-        if not connection['status']:
-            return {
-                'success': False,
-                'response': None,
-                'error': connection['message'],
-                'details': connection['details']
-            }
-        
+    def consultar(pregunta: str) -> dict:
+        """Realiza una consulta a la API"""
         try:
             payload = {
                 "model": "deepseek-chat",
                 "messages": [
                     {"role": "system", "content": "Eres un asistente útil en español"},
-                    {"role": "user", "content": prompt}
+                    {"role": "user", "content": pregunta}
                 ],
                 "temperature": 0.7,
                 "max_tokens": 1000,
@@ -115,61 +149,68 @@ class DeepSeekConnector:
                 'Accept': 'application/json'
             }
             
-            logger.debug(f"Enviando payload: {json.dumps(payload, indent=2)}")
+            logger.debug(f"Enviando consulta a DeepSeek: {json.dumps(payload, indent=2)}")
             
             response = requests.post(
                 f"{DEEPSEEK_API_URL}/chat/completions",
                 headers=headers,
                 json=payload,
-                timeout=30  # Timeout generoso
+                timeout=30
             )
             
             if response.status_code == 200:
                 return {
-                    'success': True,
-                    'response': response.json(),
-                    'error': None,
-                    'details': {
-                        'status_code': response.status_code,
-                        'latency_ms': response.elapsed.total_seconds() * 1000
-                    }
+                    'exito': True,
+                    'respuesta': response.json(),
+                    'latencia_ms': response.elapsed.total_seconds() * 1000
                 }
             else:
                 return {
-                    'success': False,
-                    'response': None,
+                    'exito': False,
                     'error': f"HTTP {response.status_code}",
-                    'details': {
-                        'response_text': response.text[:500],
-                        'headers': dict(response.headers)
-                    }
+                    'detalles': response.text[:500]
                 }
                 
+        except requests.exceptions.Timeout:
+            return {
+                'exito': False,
+                'error': "Timeout después de 30 segundos",
+                'solucion': "Intenta nuevamente más tarde"
+            }
         except Exception as e:
             return {
-                'success': False,
-                'response': None,
-                'error': str(e),
-                'details': {
-                    'type': type(e).__name__
-                }
+                'exito': False,
+                'error': f"Error inesperado: {type(e).__name__}",
+                'detalles': str(e)
             }
 
-# Handlers de Telegram mejorados
+# =============================================
+# MANEJADORES DE TELEGRAM
+# =============================================
+
 @bot.message_handler(commands=['start', 'help', 'adan'])
-def send_welcome(message):
+def enviar_bienvenida(message):
     """Mensaje de bienvenida con diagnóstico completo"""
-    connection = DeepSeekConnector.verify_connection()
+    conexion = DeepSeekConnector.verificar_conexion()
     
-    status_icon = "✅" if connection['status'] else "❌"
-    status_text = (f"{status_icon} *Estado:* {connection['message']}\n\n"
-                  f"*Detalles técnicos:*\n"
-                  f"```{json.dumps(connection.get('details', {}), indent=2)}```")
+    status_msg = [
+        f"*Estado:* {conexion['mensaje']}",
+        f"*URL API:* `{DEEPSEEK_API_URL}`"
+    ]
+    
+    if conexion.get('latencia_ms'):
+        status_msg.append(f"*Latencia:* {conexion['latencia_ms']} ms")
+    
+    if not conexion['conectado']:
+        if 'solucion' in conexion:
+            status_msg.append(f"\n*Solución:* {conexion['solucion']}")
+        if 'error' in conexion:
+            status_msg.append(f"\n*Error:* `{conexion['error'][:200]}`")
     
     welcome_msg = f"""
-    🤖 *Asistente ADAN con DeepSeek-V3* 🧠
+    🤖 *Asistente ADAN con DeepSeek* 🧠
     
-    {status_text}
+    {"\n".join(status_msg)}
     
     *Cómo usarme:*
     - Escribe tu pregunta directamente
@@ -179,8 +220,8 @@ def send_welcome(message):
     bot.reply_to(message, welcome_msg, parse_mode="Markdown")
 
 @bot.message_handler(func=lambda message: True)
-def handle_message(message):
-    """Manejador principal con respuesta detallada"""
+def manejar_mensaje(message):
+    """Procesa todos los mensajes de texto"""
     if message.text.startswith('/'):
         return
         
@@ -190,25 +231,41 @@ def handle_message(message):
         bot.reply_to(message, "Por favor escribe una pregunta válida")
         return
     
-    result = DeepSeekConnector.query(message.text)
+    resultado = DeepSeekConnector.consultar(message.text)
     
-    if result['success']:
+    if resultado['exito']:
         try:
-            answer = result['response']['choices'][0]['message']['content']
-            bot.reply_to(message, f"🧠 *Respuesta:*\n\n{answer}", parse_mode="Markdown")
-        except KeyError:
-            error_msg = "Recibí una respuesta inesperada de la API"
-            logger.error(f"{error_msg}: {json.dumps(result['response'], indent=2)}")
-            bot.reply_to(message, f"🔴 {error_msg}. Por favor intenta nuevamente.")
+            respuesta = resultado['respuesta']['choices'][0]['message']['content']
+            tiempo_respuesta = resultado.get('latencia_ms', 0)
+            mensaje = (
+                f"🧠 *Respuesta:*\n\n{respuesta}\n\n"
+                f"⏱ *Tiempo:* {tiempo_respuesta:.0f} ms"
+            )
+            bot.reply_to(message, mensaje, parse_mode="Markdown")
+        except (KeyError, TypeError):
+            error_msg = "⚠️ Ocurrió un error al procesar la respuesta"
+            logger.error(f"{error_msg}: {json.dumps(resultado.get('respuesta', {}), indent=2)}")
+            bot.reply_to(message, f"{error_msg}. Por favor intenta nuevamente.")
     else:
-        error_msg = (f"No pude obtener una respuesta. Error: {result['error']}\n\n"
-                    f"Detalles: {result.get('details', {}).get('response_text', '')}")
-        bot.reply_to(message, error_msg)
+        error_msg = [
+            "🔴 *No pude obtener una respuesta*",
+            f"*Error:* {resultado['error']}"
+        ]
+        
+        if 'detalles' in resultado:
+            error_msg.append(f"*Detalles:* `{resultado['detalles'][:200]}`")
+        if 'solucion' in resultado:
+            error_msg.append(f"\n*Solución:* {resultado['solucion']}")
+        
+        bot.reply_to(message, "\n".join(error_msg), parse_mode="Markdown")
 
-# Configuración del servidor web optimizada
+# =============================================
+# CONFIGURACIÓN DEL SERVIDOR WEB
+# =============================================
+
 @app.route('/webhook', methods=['POST'])
-def webhook_handler():
-    """Endpoint para webhook con manejo robusto de errores"""
+def manejar_webhook():
+    """Endpoint para webhook de Telegram"""
     try:
         if request.headers.get('content-type') == 'application/json':
             update = telebot.types.Update.de_json(request.get_json())
@@ -219,63 +276,69 @@ def webhook_handler():
         logger.error(f"Error en webhook: {str(e)}", exc_info=True)
         return 'Internal Server Error', 500
 
-def configure_webhook():
-    """Configuración del webhook con reintentos"""
-    max_attempts = 3
-    for attempt in range(max_attempts):
+def configurar_webhook():
+    """Configura el webhook con reintentos"""
+    max_intentos = 3
+    for intento in range(max_intentos):
         try:
             bot.remove_webhook()
             time.sleep(1)
             webhook_url = f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME')}/webhook"
             bot.set_webhook(url=webhook_url)
-            logger.info(f"Webhook configurado exitosamente en {webhook_url}")
+            logger.info(f"Webhook configurado en: {webhook_url}")
             return True
         except Exception as e:
-            logger.error(f"Intento {attempt + 1} fallido: {str(e)}")
-            if attempt < max_attempts - 1:
+            logger.error(f"Intento {intento+1} fallido: {str(e)}")
+            if intento < max_intentos - 1:
                 time.sleep(2)
     
-    logger.critical("No se pudo configurar el webhook después de varios intentos")
+    logger.critical("No se pudo configurar el webhook")
     return False
 
-def run_server():
-    """Inicia el servidor web con configuración optimizada"""
-    port = int(os.getenv('PORT', 10000))
+def iniciar_servidor():
+    """Inicia el servidor web"""
+    puerto = int(os.getenv('PORT', 10000))
+    logger.info(f"Iniciando servidor en puerto {puerto}")
     app.run(
         host='0.0.0.0',
-        port=port,
+        port=puerto,
         threaded=True,
         debug=False,
         use_reloader=False
     )
 
+# =============================================
+# INICIALIZACIÓN PRINCIPAL
+# =============================================
+
 if __name__ == '__main__':
     logger.info("="*60)
-    logger.info("Iniciando servicio ADAN")
-    logger.info(f"Versión API: {DEEPSEEK_API_URL}")
+    logger.info(f"Iniciando Bot ADAN - DeepSeek")
+    logger.info(f"URL API: {DEEPSEEK_API_URL}")
     logger.info("="*60)
     
     # Verificación inicial de conexión
-    initial_check = DeepSeekConnector.verify_connection()
-    logger.info(f"Verificación inicial: {json.dumps(initial_check, indent=2)}")
+    estado = DeepSeekConnector.verificar_conexion()
+    logger.info(f"Estado inicial: {json.dumps(estado, indent=2)}")
     
     if os.getenv('RENDER'):
         logger.info("Modo: Producción (Render.com)")
         
-        if not configure_webhook():
-            logger.critical("Error crítico al configurar webhook. Saliendo.")
+        if not configurar_webhook():
+            logger.critical("Error crítico al configurar webhook")
             exit(1)
             
-        server_thread = Thread(target=run_server)
-        server_thread.daemon = True
-        server_thread.start()
+        # Iniciar servidor en segundo plano
+        servidor = Thread(target=iniciar_servidor)
+        servidor.daemon = True
+        servidor.start()
         
         logger.info("Servicio iniciado. Esperando mensajes...")
         try:
             while True:
                 time.sleep(3600)
         except KeyboardInterrupt:
-            logger.info("Recibida señal de interrupción. Saliendo.")
+            logger.info("Deteniendo servicio...")
     else:
         logger.info("Modo: Desarrollo (Polling)")
         bot.remove_webhook()
