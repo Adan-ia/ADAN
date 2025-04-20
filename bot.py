@@ -76,13 +76,13 @@ def consultar_deepseek(pregunta: str, chat_id: str) -> str:
 # --- Comandos del Bot ---
 @bot.message_handler(commands=['start', 'help', 'adan'])
 def send_welcome(message):
-    welcome_text =
+    welcome_text ="""
     🤖 *Hola! Soy" tu asistente con tecnología DeepSeek-V3* 🧠
     
     Puedes interactuar conmigo usando:
     /adan [tu pregunta] - Consulta directa
     O simplemente escribe tu pregunta
-    "
+    """
     📡 Estado: {'Operativo' if DEEPSEEK_API_KEY else "Sin conexión a DeepSeek"}
     
     bot.reply_to(message, welcome_text, parse_mode="Markdown")
