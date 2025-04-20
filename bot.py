@@ -26,6 +26,10 @@ def consultar_deepseek(pregunta: str, chat_id: str) -> str:
     Envía consultas a la API de DeepSeek y devuelve la respuesta
     """
     try:
+        logger.info(f"Clave API: {'Presente' if DEEPSEEK_API_KEY else 'Faltante'}")
+        
+        logger.info(f"URL API: {DEEPSEEK_API_URL}")
+        
         headers = {
             'Authorization': f'Bearer {DEEPSEEK_API_KEY}',
             'Content-Type': 'application/json'
@@ -72,15 +76,15 @@ def consultar_deepseek(pregunta: str, chat_id: str) -> str:
 # --- Comandos del Bot ---
 @bot.message_handler(commands=['start', 'help', 'adan'])
 def send_welcome(message):
-    welcome_text = """
-    🤖 *Hola! Soy tu asistente con tecnología DeepSeek-V3* 🧠
+    welcome_text =
+    🤖 *Hola! Soy" tu asistente con tecnología DeepSeek-V3* 🧠
     
     Puedes interactuar conmigo usando:
     /adan [tu pregunta] - Consulta directa
     O simplemente escribe tu pregunta
+    "
+    📡 Estado: {'Operativo' if DEEPSEEK_API_KEY else "Sin conexión a DeepSeek"}
     
-    📡 Estado: {"Operativo" if DEEPSEEK_API_KEY else "Sin conexión a DeepSeek"}
-    """
     bot.reply_to(message, welcome_text, parse_mode="Markdown")
 
 @bot.message_handler(commands=['ask', 'consulta'])
