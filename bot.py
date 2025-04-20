@@ -6,6 +6,7 @@ import requests
 import time
 import json
 from typing import Optional
+from threading import Thread
 
 # Configuración inicial
 TOKEN = os.getenv('TELEGRAM_TOKEN')
